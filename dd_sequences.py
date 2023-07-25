@@ -149,4 +149,153 @@ def setup_dd_waveforms(sequence,qb_pars={}):
                         )
 #%% something something
 
-def setup_dd_pars(sequence,dd_seq, n_pulses, T = 0)
+def setup_dd_pars(sequence,dd_seq, n_pulses,delay_time=10e-6,sample_rate = 2.4e9, T = 0):
+    if dd_seq == 'udd':
+        sequence.constants['n_pulses'] = n_pulses
+    else: 
+        delay_samples = delay_time * sample_rate
+        sequence.constants['delay_samples'] = delay_samples
+        sequence.constants['n_pulses'] = n_pulses
+
+
+#%% UDD Time Array Functions (TO BE EDITED)
+def tj_k(k, m, tau_j, tj_m_1):
+    """
+    Returns tj_[k] for QDD_n_[m] where inner pulses occur over
+    time [tau_j] and last outer pulse is at [tj_m_1].
+    """
+    frac = (k * np.pi) / (2 * m + 2)
+    return tau_j * (np.sin(frac))**2 + tj_m_1
+
+def make_tj_k_list(m, tau_j, tj_m_1):
+    """
+    Returns list of tj_k times for QDD_n_[m] inner pulses
+    over time [tau_j] where last outer pulse is at [tj_m_1].
+    """
+    if m % 2 == 0:
+        k_list = [k for k in range(1, m + 1)]
+    else:
+        k_list = [k for k in range(1, m + 2)]
+    return np.array([tj_k(k, m, tau_j, tj_m_1) for k in k_list])
+
+def make_udd_sched(n, T, pulse_width=0):
+    """
+    Make a UDD_[n] time schedule over total DD time [T] where non-ideal
+    pulses have finite [pulse_width]. Makes idealized tj times and then
+    substracts off [pulse_width] then checks no pulse overlaps.
+
+    Returns physical_times when pulses should START.
+    """
+    # get idealized tj times
+    tj_list = make_tj_list(n, T)
+    # turn physical times into integers
+    tj_list = np.array(list(map(int, np.floor(tj_list))))
+    # subtract off pulse_width to get correct time to begin gates
+    phys_tj_list = list(map(int, tj_list - pulse_width))
+
+    # ensure that no gates must be applied at "negative" times
+    if phys_tj_list[0] < 0:
+        e = (f"Either n too large or T too small to accomodate pulses with\
+        width {pulse_width} since first gate must be applied at t1\
+        = {phys_tj_list[0]}.\n")
+        raise ValueError(e)
+    # ensure no diff in t between gates is smaller than pulse_width
+    diffs = []
+    for idx in range(1, len(phys_tj_list)):
+        diffs.append(phys_tj_list[idx] - phys_tj_list[idx - 1])
+    min_diff = min(diffs)
+    if min_diff < pulse_width:
+        e = (f"Minimum pulse spacing required for n={n} and T={T} is\
+            {min_diff}, but pulse_width is {pulse_width}.")
+
+    return phys_tj_list
+
+def find_min_udd_time(n, x_width):
+    """
+    Finds smallest acceptable UDD time which
+    corresponds to smallest pulse delay.
+    """
+    # first, get order of magnitude guess for T
+    T = x_width
+    success = False
+    while success is False:
+        try:
+            make_udd_sched(n, T, x_width)
+            success = True
+        except:
+            prev_T = T
+            T *= 10
+
+    # now try guesses incrementally until minimum T found
+    for Tg in range(prev_T, T):
+        try:
+            make_udd_sched(n, Tg, x_width)
+            break
+        except:
+            continue
+
+    return Tg
+
+def make_mid_udd_sched(n, T, pulse_width=0):
+    """
+    Make a UDD_[n] time schedule over total DD time [T] where non-ideal
+    pulses have finite [pulse_width]. Makes idealized tj times and then
+    substracts off [pulse_width]/2 then checks no pulse overlaps.
+
+    Returns physical_times when pulses should START.
+    """
+    # get idealized tj times
+    tj_list = make_tj_list(n, T)
+    # subtract off pulse_width to get correct time to begin gates
+    phys_tj_list = tj_list - (pulse_width / 2)
+    # schedule can only be specified to nearest integer
+    phys_tj_list = list(map(int, np.ceil(phys_tj_list)))
+
+    # ensure that no gates must be applied at "negative" times
+    if phys_tj_list[0] < 0:
+        e = (f"Either n too large or T too small to accomodate pulses with\
+        width {pulse_width} since first gate must be applied at t1\
+        = {phys_tj_list[0]}.\n")
+        raise ValueError(e)
+    # ensure no diff in t between gates is smaller than pulse_width
+    diffs = []
+    for idx in range(1, len(phys_tj_list)):
+        diffs.append(phys_tj_list[idx] - phys_tj_list[idx - 1])
+    min_diff = min(diffs)
+    if min_diff < pulse_width:
+        e = (f"Minimum pulse spacing required for n={n} and T={T} is\
+            {min_diff}, but pulse_width is {pulse_width}.")
+
+    return phys_tj_list
+
+def make_end_udd_sched(n, T, pulse_width=0):
+    """
+    Make a UDD_[n] time schedule over total DD time [T] where non-ideal
+    pulses have finite [pulse_width]. Makes idealized tj times and uses
+    these as start times of pulses.
+
+    Returns physical_times when pulses should START.
+    """
+    # get idealized tj times
+    tj_list = make_tj_list(n, T)
+    # subtract off pulse_width to get correct time to begin gates
+    phys_tj_list = tj_list - 0
+    # schedule can only be specified to nearest integer
+    phys_tj_list = list(map(int, np.ceil(phys_tj_list)))
+
+    # ensure that no gates must be applied at "negative" times
+    if phys_tj_list[0] < 0:
+        e = (f"Either n too large or T too small to accomodate pulses with\
+        width {pulse_width} since first gate must be applied at t1\
+        = {phys_tj_list[0]}.\n")
+        raise ValueError(e)
+    # ensure no diff in t between gates is smaller than pulse_width
+    diffs = []
+    for idx in range(1, len(phys_tj_list)):
+        diffs.append(phys_tj_list[idx] - phys_tj_list[idx - 1])
+    min_diff = min(diffs)
+    if min_diff < pulse_width:
+        e = (f"Minimum pulse spacing required for n={n} and T={T} is\
+            {min_diff}, but pulse_width is {pulse_width}.")
+
+    return phys_tj_list
