@@ -158,6 +158,11 @@ def setup_dd_pars(sequence,dd_seq, n_pulses,delay_time=10e-6,sample_rate = 2.4e9
         sequence.constants['n_pulses'] = n_pulses
 
 
+#%% some kinda function to make command table
+
+def make_command_table():
+    
+
 #%% UDD Time Array Functions (TO BE EDITED)
 def tj_k(k, m, tau_j, tj_m_1):
     """
