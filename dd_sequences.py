@@ -12,8 +12,37 @@ from zhinst.toolkit.waveform import Wave, OutputType
 from zhinst.toolkit import CommandTable,Sequence,Waveforms
 from utilities import roundToBase
 from sequence_setup import make_wave
+import matplotlib.pyplot as plt
 
 #%% something descriptive here... 
+def seq_time(dd_seq, delay_time,num_pulses, sample_rate,sym,qb_pars={}):
+    ''' 
+    Calculates time (in seconds) for one dd sequence
+    '''
+    if dd_seq == 'pure-x': 
+        pulse_time = 2 * ( qb_pars['pi_len'] * sample_rate ) 
+        if sym is False: # x - d - x - d
+            total_delay_time = 2 * delay_time 
+        else: # d - x - 2d - x - d 
+            total_delay_time = 4 * delay_time
+    elif dd_seq == 'xy4':     
+        pulse_time = 4 * ( qb_pars['pi_len'] * sample_rate ) 
+        if sym is False: # y - d - x - d - y - d - x - d
+            total_delay_time = 4 * delay_time
+        else: # d - y - 2d - x - 2d- y - 2d -x -d 
+            total_delay_time = 8 * delay_time
+    #elif dd_seq == 'udd':
+    #    pulse_time = num_pulses *  ( qb_pars['pi_len'] * sample_rate ) 
+    sequence_time = total_delay_time + pulse_time
+    return sequence_time
+
+def max_sequences(experiment_time, sequence_time):
+    ''' 
+    Calculates the maximum number of dd sequences given an experiment time
+    '''
+    return int(experiment_time / sequence_time) 
+
+#%% main dd sequence generator
 def gen_dd_seq_code(dd_seq,sym):
     '''
     generates dd sequence code
@@ -37,8 +66,9 @@ def purex_sequence(sym):
     generates pure x dd sequence
     '''
     if sym  is False:
+        # plays pure-x sequence: x - d - x - d
         awg_program = '''
-            repeat(n_pulses){
+            repeat(n_seq){
             // Execute a pi x-pulse
             executeTableEntry(0);
             // Wait time delay 
@@ -50,8 +80,9 @@ def purex_sequence(sym):
             }
         '''
     else:
+        # plays symmetric pure-x sequence: d - x - 2d - x - d 
         awg_program = '''
-            repeat(n_pulses){
+            repeat(n_seq){
             // Wait time delay 
             playZero(delay_samples);
            // Execute a pi x-pulse
@@ -70,8 +101,9 @@ def purex_sequence(sym):
 
 def xy4_sequence(sym):
     if sym is False:
+        # y - d - x - d - y - d - x - d
         awg_program = '''
-            repeat(n_pulses){
+            repeat(n_seq){
             // Add a y pulse
             executeTableEntry(1);
             // Wait Time Delay
@@ -91,8 +123,9 @@ def xy4_sequence(sym):
             }
         '''
     else:
+        # d - y - 2d - x - 2d- y - 2d -x -d 
         awg_program = '''
-            repeat(n_pulses){
+            repeat(n_seq){
             // Wait time delay 
             playZero(delay_samples);
            // Execute a pi y-pulse
@@ -112,6 +145,14 @@ def xy4_sequence(sym):
             // Wait time delay 
             playZero(delay_samples);
             }
+        '''
+    return awg_program
+
+
+
+def udd_sequence(sym):
+    if sym is False:
+        awg_program = ''' 
         '''
     return awg_program
 
@@ -140,28 +181,43 @@ def setup_dd_waveforms(sequence,qb_pars={}):
                         wave_name = 'y_zero',
                         amplitude = 0,
                         pulse_length = N,
-                        output_order = '21')),
+                        output_order = '12')),
         Wave(*make_wave(pulse_type = 'pi',
                        wave_name = 'y_pulse',
                        amplitude = 1,
                        pulse_length = N,
-                       output_order = '21'))
+                       output_order = '12'))
                         )
 #%% something something
 
-def setup_dd_pars(sequence,dd_seq, n_pulses,delay_time=10e-6,sample_rate = 2.4e9, T = 0):
+def setup_dd_pars(sequence,dd_seq, n_seq,delay_time=10e-6,sample_rate = 2.4e9, T = 0):
     if dd_seq == 'udd':
-        sequence.constants['n_pulses'] = n_pulses
+        sequence.constants['n_seq'] = n_seq
     else: 
         delay_samples = delay_time * sample_rate
         sequence.constants['delay_samples'] = delay_samples
-        sequence.constants['n_pulses'] = n_pulses
+        sequence.constants['n_seq'] = n_seq
 
 
 #%% some kinda function to make command table
 
 def make_command_table():
-    
+   return
+
+
+def construct_time_array(experiment_time,num_pulses):
+    """ 
+    Constructs an array of time intervals for pi
+    pulse sequence to be applied
+    """
+    if (np.mod(num_pulses,2)!= 0):
+        j = np.linspace(1, num_pulses+1, num_pulses+1, dtype = int)
+    else: 
+        j = np.linspace(1, num_pulses, num_pulses, dtype = int)
+    tj = experiment_time * np.sin(j * np.pi / (2 * num_pulses + 2))**2
+
+    plt.plot(j,tj)
+    return tj
 
 #%% UDD Time Array Functions (TO BE EDITED)
 def tj_k(k, m, tau_j, tj_m_1):
