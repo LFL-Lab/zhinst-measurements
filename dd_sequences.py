@@ -40,7 +40,25 @@ def max_sequences(experiment_time, sequence_time):
     ''' 
     Calculates the maximum number of dd sequences given an experiment time
     '''
-    return int(experiment_time / sequence_time) 
+    return int(experiment_time / sequence_time)
+
+
+#%% main dd sequence stuff
+def run_dd(dd_seq,num_pulses, experiment_time, delay_time, sample_rate, qb_pars={}):
+
+    # compute time to run one dd sequence
+    time_seq = seq_time(dd_seq, delay_time,num_pulses, sample_rate,sym = True,qb_pars=qb_pars) 
+    # compute maximum number of dd sequences given experiment time
+    n_max = max_sequences(experiment_time, time_seq)
+
+    for ii in range (0, n_max):
+        for jj in range (0,ii):
+            # run specific dd sequence here...
+            return
+        
+
+        # tomography
+    return
 
 #%% main dd sequence generator
 def gen_dd_seq_code(dd_seq,sym):
